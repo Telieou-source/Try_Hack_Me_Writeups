@@ -4,7 +4,7 @@ A writeup covering credential harvesting techniques from TryHackMe's *Credential
 
 ## Environment
 
-- **Attack machine:** Kali Linux (WSL2 on Windows) with premium VPN (`us-west-2-Will.Lawson-premium.ovpn`)
+- **Attack machine:** Kali Linux (WSL2 on Windows) with TryHackMe premium VPN (US-West-2 server, downloaded from the TryHackMe access page)
 - **Lab machine:** Windows Server 2019 Domain Controller (IP changes on reset — check TryHackMe room page)
 - **RDP credentials:** `thm` / `Passw0rd!`
 - **Tools used:** Mimikatz, impacket-secretsdump, impacket-GetUserSPNs, impacket-GetNPUsers, hashcat, Get-WebCredentials.ps1, vaultcmd
