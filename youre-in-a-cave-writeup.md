@@ -1,4 +1,4 @@
-# THM: You're in a Cave — CTF
+# TryHackMe: You're in a Cave — CTF
 **Difficulty:** Insane  
 
 ---
