@@ -1,2 +1,2 @@
 # Try_Hack_Me_Writeups
-Writeups for TryHackMe Rooms and CTFs
+Writeups and Walkthroughs for TryHackMe Rooms and CTFs
