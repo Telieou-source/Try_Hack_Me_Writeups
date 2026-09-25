@@ -1,6 +1,5 @@
-# You're in a Cave — TryHackMe CTF Writeup
+# THM: You're in a Cave — CTF
 **Difficulty:** Insane  
-**Date:** September 2026
 
 ---
 
