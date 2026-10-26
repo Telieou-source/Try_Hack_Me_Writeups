@@ -1,7 +1,6 @@
 # THM Dead Endpoint — Forensics Writeup
 
 **Date:** 2026-10-24  
-**Event result:** 99 / 1139 teams (top ~9%)
 
 ---
 
