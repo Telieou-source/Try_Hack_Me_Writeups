@@ -1,4 +1,4 @@
-# TryHackMe: OWASP Top 10 2025 — Architecture & Design Failures — Writeup
+# TryHackMe: OWASP Top 10 2025 (Architecture & Design Failures) — Writeup
 
 **Room:** OWASP Top 10 2025 — Architecture & Design (Module: OWASP Top 10 2025)
 **Categories covered:**

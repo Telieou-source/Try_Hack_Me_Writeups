@@ -1,4 +1,4 @@
-# TryHackMe: Lateral Movement and Pivoting
+# TryHackMe: Lateral Movement and Pivoting — Writeup
 
 A writeup covering the AD lateral movement techniques from TryHackMe's *Lateral Movement and Pivoting* room, including environment setup on a WSL2 Kali box (which came with its own set of gotchas).
 

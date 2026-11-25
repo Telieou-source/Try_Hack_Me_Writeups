@@ -1,4 +1,4 @@
-# THM Dead Endpoint — Forensics Writeup
+# TryHackMe: Dead Endpoint — Writeup
 
 **Date:** 2026-10-24  
 

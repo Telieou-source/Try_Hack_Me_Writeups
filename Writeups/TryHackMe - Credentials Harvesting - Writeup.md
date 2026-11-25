@@ -1,4 +1,4 @@
-# TryHackMe: Credentials Harvesting
+# TryHackMe: Credentials Harvesting — Writeup
 
 A writeup covering credential harvesting techniques from TryHackMe's *Credentials Harvesting* room. This room focuses on obtaining credentials from a compromised Windows Server 2019 Domain Controller using various local and remote techniques.
 

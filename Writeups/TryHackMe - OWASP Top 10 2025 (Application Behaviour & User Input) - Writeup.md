@@ -1,4 +1,4 @@
-# TryHackMe: OWASP Top 10 2025 — Application Behaviour & User Input — Writeup
+# TryHackMe: OWASP Top 10 2025 (Application Behaviour & User Input) — Writeup
 
 **Room:** OWASP Top 10 2025 — Application Behaviour & User Input (Module: OWASP Top 10 2025)
 **Categories covered:**

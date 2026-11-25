@@ -1,4 +1,4 @@
-# TryHackMe: AD — BadSuccessor — Writeup
+# TryHackMe: AD BadSuccessor — Writeup
 
 **Room type:** Guided / Walkthrough  
 **Category:** Active Directory / Privilege Escalation  

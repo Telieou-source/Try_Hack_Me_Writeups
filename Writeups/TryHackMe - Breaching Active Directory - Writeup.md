@@ -1,4 +1,4 @@
-# TryHackMe: Breaching Active Directory
+# TryHackMe: Breaching Active Directory — Writeup
 
 **Room:** [Breaching Active Directory](https://tryhackme.com/room/breachingad)
 **Category:** Active Directory / Red Team

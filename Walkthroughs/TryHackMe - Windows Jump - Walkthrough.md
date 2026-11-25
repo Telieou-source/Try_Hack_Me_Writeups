@@ -1,3 +1,5 @@
+# TryHackMe: Windows Jump — Walkthrough
+
 ## Overview
 
 Windows Jump is a premium TryHackMe room focused on Windows privilege escalation. The goal was to climb a four-step chain — guest → thmuser → notadmin → svcadmin → SYSTEM — collecting a flag at each stage. The lab machine ran Windows Server 2019 (build 10.0.17763.1821) and was accessible over a VPN at 10.145.148.133 (the machine was reset once during the session, originally at 10.144.142.39).

@@ -1,4 +1,4 @@
-# TryHackMe: biteme — CTF 
+# TryHackMe: Biteme — Walkthrough
 
 **Target:** Apache/PHP web app + SSH, Ubuntu box
 **Attack host:** Kali-style box with nmap, gobuster, ffuf, hydra, hashcat, john

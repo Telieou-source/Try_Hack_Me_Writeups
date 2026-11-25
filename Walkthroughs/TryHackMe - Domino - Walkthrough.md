@@ -1,4 +1,4 @@
-# Domino — Walkthrough
+# TryHackMe: Domino — Walkthrough
 
 Oct 22, 2026 · @Will
 

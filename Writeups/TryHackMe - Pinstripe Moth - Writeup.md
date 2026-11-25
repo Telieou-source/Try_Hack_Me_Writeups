@@ -1,6 +1,4 @@
-TryHackMe · Memory Forensics
-
-# Pinstripe Moth
+# TryHackMe: Pinstripe Moth — Writeup
 
 2026-10-24 Will Lawson Hard Windows Memory Malware Analysis
 

@@ -1,4 +1,4 @@
-# TryHackMe: You're in a Cave — Insane CTF
+# TryHackMe: You're in a Cave — Walkthrough
 
 **Target:** Apache/PHP web app + custom Java RPG TCP service + SSH, Ubuntu box inside Docker  
 **Attack host:** Kali Linux with nmap, gobuster, nc, Java (JDK), hydra, gpg, john, Python3
